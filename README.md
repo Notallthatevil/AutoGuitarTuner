@@ -1,1 +1,3 @@
 # AutoGuitarTuner
+
+Nate Tripp
