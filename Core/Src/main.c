@@ -18,6 +18,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include <stm32f0xx_hal_adc.h>
+#include <stm32f0xx_hal_adc_ex.h>
 
 void SystemClock_Config(void);
 
@@ -120,51 +122,120 @@ void toggle_led(TRIPP_PIN_COLOR color){
   * @retval int
   */
 
-volatile int16_t adc_value;
+
+
+
+//int8_t calcSoundAverage() {
+//	int avg = 0;
+//	for(int i = 0; i < ADC_SIZE; ++i) {
+//		avg += adc_value[i];
+//	}
+//	
+//	return avg / ADC_SIZE;
+//}
+//
+//uint32_t calcFrequency() {
+//	int8_t avg = calcSoundAverage();
+//	
+//	int numSamples = 0;
+//	int16_t zeros = 0;
+//	int8_t aboveZero = (adc_value[0] - avg) > 0;
+//	int8_t firstHalfwave = 0;
+//	for(int i = 1; i < ADC_SIZE; ++i) {
+//		int8_t current = adc_value[i] - avg;
+//		
+//		if(current > 0 && !aboveZero) {
+//			zeros++;
+//			aboveZero = 1;
+//			firstHalfwave++;
+//		}
+//		else if(current < 0 && aboveZero) {
+//			zeros++;
+//			aboveZero = 0;
+//			firstHalfwave++;
+//		}		
+//		
+//		if(firstHalfwave == 1) {
+//			numSamples++;
+//		}
+//	}
+//	return 0;
+//}
+
+
+void error() {
+	enable_gpio(GPIOC);
+	enable_led(TRIPP_RED);
+	turn_on_led(TRIPP_RED);
+
+}
+
+volatile uint32_t adc_value = 0;
 int main(void)
 {
  
   HAL_Init();
   SystemClock_Config();
 	
-	enable_gpio(GPIOC);
-	enable_led(TRIPP_BLUE);
-	enable_led(TRIPP_GREEN);
-	enable_led(TRIPP_RED);
-	enable_led(TRIPP_ORANGE);
 	
-	// Set PC0 to analog
-	GPIOC->MODER |= (3 << 0);
-	GPIOC->PUPDR &= ~(3 << 0);
+	RCC->APB2ENR = RCC_APB2ENR_ADC1EN;
+	
+	ADC_HandleTypeDef adcHandle = {0};
+	adcHandle.Instance = ADC1;
+	
+	adcHandle.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+	adcHandle.Init.Resolution = ADC_RESOLUTION_12B;
+	adcHandle.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+	adcHandle.Init.ScanConvMode = 0;
+	adcHandle.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+	adcHandle.Init.LowPowerAutoWait = DISABLE;
+	adcHandle.Init.LowPowerAutoPowerOff = DISABLE;
+	adcHandle.Init.ContinuousConvMode = ENABLE;
+	adcHandle.Init.DiscontinuousConvMode = DISABLE;
+	adcHandle.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+	adcHandle.Init.ExternalTrigConvEdge = 0;
+	adcHandle.Init.DMAContinuousRequests = DISABLE;
+	adcHandle.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
+	adcHandle.Init.SamplingTimeCommon = ADC_SAMPLETIME_1CYCLE_5;
+	
+	adcHandle.DMA_Handle = NULL;
+	
+	adcHandle.Lock = HAL_UNLOCKED;
+	
+	adcHandle.State = 0;
+	
+	HAL_StatusTypeDef status = HAL_ADC_Init(&adcHandle);
 	
 
-	// Enable ADC1
-	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
+	if(status != HAL_OK) {
+		error();
+	}
 	
-	// continuous, hardware triggers disabled;
-	ADC1->CFGR1 |= (1 << 13);
+	ADC_ChannelConfTypeDef adcChannel;
+	adcChannel.Channel = ADC_CHANNEL_10;
 	
-	// Set channel
-	ADC1->CHSELR |= (1 << 10);
+	status = HAL_ADC_ConfigChannel(&adcHandle, &adcChannel);
 	
-	ADC1->SMPR = 7;
+	if(status != HAL_OK) {
+		error();
+	}
 	
-	// Start calibration
-	ADC1->CR |= (1 << 31);
-	while((ADC1->CR & (1 << 31)) > 0) {}; // Calibration in progress
-		
-	// Enable ADC
-	ADC1->CR |= (1 << 0);
+	status = HAL_ADCEx_Calibration_Start(&adcHandle);
+	if(status != HAL_OK) {
+		error();
+	}
 	
-	while((ADC1->ISR & (1 << 0)) > 0) {}; // Wait for ready flag.
-	ADC1->CR |= (1 << 2); // Start
-	
-  while (1)
-  {
-		adc_value = ADC1->DR;
-  }
- 
+	status = HAL_ADC_Start(&adcHandle);
+	if(status != HAL_OK) {
+		error();
+	}
+	enable_gpio(GPIOC);
+	enable_led(TRIPP_BLUE);
+	while(1) {
+		adc_value = HAL_ADC_GetValue(&adcHandle);
+	}	
 }
+
 
 /**
   * @brief System Clock Configuration

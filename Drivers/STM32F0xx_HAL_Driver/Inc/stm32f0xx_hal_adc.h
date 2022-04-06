@@ -279,7 +279,7 @@ typedef  void (*pADC_CallbackTypeDef)(ADC_HandleTypeDef *hadc); /*!< pointer to 
 /**
   * @}
   */
-
+ 
 /** @defgroup ADC_ClockPrescaler ADC ClockPrescaler
   * @{
   */     

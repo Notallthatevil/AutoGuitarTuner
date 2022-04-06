@@ -470,11 +470,11 @@ HAL_StatusTypeDef HAL_ADC_Init(ADC_HandleTypeDef* hadc)
   /* correctly completed.                                                     */
   /* and if there is no conversion on going on regular group (ADC can be      */ 
   /* enabled anyway, in case of call of this function to update a parameter   */
-  /* on the fly).                                                             */
+  /* on the fly).                                                             */                     
   if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL) &&
       (tmp_hal_status == HAL_OK)                                &&
       (ADC_IS_CONVERSION_ONGOING_REGULAR(hadc) == RESET)          )
-  {
+  {           
     /* Set ADC state */
     ADC_STATE_CLR_SET(hadc->State,
                       HAL_ADC_STATE_REG_BUSY,

@@ -18,6 +18,8 @@
 "autoguitartuner\stm32f0xx_hal_flash.o"
 "autoguitartuner\stm32f0xx_hal_flash_ex.o"
 "autoguitartuner\stm32f0xx_hal_exti.o"
+"autoguitartuner\stm32f0xx_hal_adc.o"
+"autoguitartuner\stm32f0xx_hal_adc_ex.o"
 "autoguitartuner\system_stm32f0xx.o"
 --strict --scatter "AutoGuitarTuner\AutoGuitarTuner.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
