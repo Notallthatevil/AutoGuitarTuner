@@ -19,82 +19,151 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-/* USER CODE BEGIN PFP */
 
-/* USER CODE END PFP */
 
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
+typedef enum TRIPP_PIN_COLOR {
+	TRIPP_RED = GPIO_PIN_6,
+	TRIPP_BLUE = GPIO_PIN_7,
+	TRIPP_ORANGE = GPIO_PIN_8,
+	TRIPP_GREEN = GPIO_PIN_9
+} TRIPP_PIN_COLOR;	
 
-/* USER CODE END 0 */
+
+void enable_gpio(GPIO_TypeDef* gpio) {
+	switch((uintptr_t)gpio) {
+		case GPIOA_BASE:
+			RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+			break;
+		case GPIOB_BASE:
+			RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+			break;
+		case GPIOC_BASE:
+			RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+			break;
+		case GPIOD_BASE:
+			RCC->AHBENR |= RCC_AHBENR_GPIODEN;
+			break;
+		case GPIOE_BASE:
+			RCC->AHBENR |= RCC_AHBENR_GPIOEEN;
+			break;
+		case GPIOF_BASE:
+			RCC->AHBENR |= RCC_AHBENR_GPIOFEN;
+			break;
+	}
+}
+
+void enable_led(TRIPP_PIN_COLOR color){
+	switch(color) {
+		case TRIPP_RED:
+			GPIOC->MODER |= (1 << 12); // Sets pin modes to output.
+			GPIOC->OTYPER &= ~(1 << 6); // Sets pin output type to push-pull.
+			GPIOC->OSPEEDR &= ~((1 << 13) | (1 << 12)); // Sets speed to low.
+			GPIOC->PUPDR &= ~((1 << 13) | (1 << 12)); // Sets no pull-up, pull-down.
+			break;
+		case TRIPP_BLUE:
+			GPIOC->MODER |= (1 << 14); // Sets pin modes to output.
+			GPIOC->OTYPER &= ~(1 << 7); // Sets pin output type to push-pull.
+			GPIOC->OSPEEDR &= ~((1 << 15) | (1 << 14)); // Sets speed to low.
+			GPIOC->PUPDR &= ~((1 << 15) | (1 << 14)); // Sets no pull-up, pull-down.
+			break;
+		case TRIPP_ORANGE:
+			GPIOC->MODER |= (1 << 16); // Sets pin modes to output.
+			GPIOC->OTYPER &= ~(1 << 8); // Sets pin output type to push-pull.
+			GPIOC->OSPEEDR &= ~((1 << 17) | (1 << 16)); // Sets speed to low.
+			GPIOC->PUPDR &= ~((1 << 17) | (1 << 16)); // Sets no pull-up, pull-down.
+			break;
+		case TRIPP_GREEN:
+			GPIOC->MODER |= (1 << 18); // Sets pin modes to output.
+			GPIOC->OTYPER &= ~(1 << 9); // Sets pin output type to push-pull.
+			GPIOC->OSPEEDR &= ~((1 << 19) | (1 << 18)); // Sets speed to low.
+			GPIOC->PUPDR &= ~((1 << 19) | (1 << 18)); // Sets no pull-up, pull-down.
+			break;
+	}
+}
+
+void turn_on_led(TRIPP_PIN_COLOR color){
+	switch(color) {
+		case TRIPP_RED:
+		case TRIPP_BLUE:
+		case TRIPP_ORANGE:
+		case TRIPP_GREEN:
+			GPIOC->BSRR |= color; // Set pin high.
+			break;
+	}
+}
+
+void turn_off_led(TRIPP_PIN_COLOR color){
+	switch(color) {
+		case TRIPP_RED:
+		case TRIPP_BLUE:
+		case TRIPP_ORANGE:
+		case TRIPP_GREEN:
+			GPIOC->BRR |= color; // Set pin high.
+			break;
+	}
+}
+
+void toggle_led(TRIPP_PIN_COLOR color){
+	switch(color) {
+		case TRIPP_RED:
+		case TRIPP_BLUE:
+		case TRIPP_ORANGE:
+		case TRIPP_GREEN:
+			GPIOC->BSRR = (((GPIOC->ODR & color) << 16)| (GPIOC->ODR ^ color));
+			break;
+	}
+}
 
 /**
   * @brief  The application entry point.
   * @retval int
   */
+
+volatile int16_t adc_value;
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+ 
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
+	
+	enable_gpio(GPIOC);
+	enable_led(TRIPP_BLUE);
+	enable_led(TRIPP_GREEN);
+	enable_led(TRIPP_RED);
+	enable_led(TRIPP_ORANGE);
+	
+	// Set PC0 to analog
+	GPIOC->MODER |= (3 << 0);
+	GPIOC->PUPDR &= ~(3 << 0);
+	
 
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
-  /* USER CODE BEGIN 2 */
-
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
+	// Enable ADC1
+	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
+	
+	// continuous, hardware triggers disabled;
+	ADC1->CFGR1 |= (1 << 13);
+	
+	// Set channel
+	ADC1->CHSELR |= (1 << 10);
+	
+	ADC1->SMPR = 7;
+	
+	// Start calibration
+	ADC1->CR |= (1 << 31);
+	while((ADC1->CR & (1 << 31)) > 0) {}; // Calibration in progress
+		
+	// Enable ADC
+	ADC1->CR |= (1 << 0);
+	
+	while((ADC1->ISR & (1 << 0)) > 0) {}; // Wait for ready flag.
+	ADC1->CR |= (1 << 2); // Start
+	
   while (1)
   {
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
+		adc_value = ADC1->DR;
   }
-  /* USER CODE END 3 */
+ 
 }
 
 /**

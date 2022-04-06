@@ -1,0 +1,25 @@
+--cpu Cortex-M0
+"autoguitartuner\startup_stm32f072xb.o"
+"autoguitartuner\main.o"
+"autoguitartuner\stm32f0xx_it.o"
+"autoguitartuner\stm32f0xx_hal_msp.o"
+"autoguitartuner\stm32f0xx_hal_tim.o"
+"autoguitartuner\stm32f0xx_hal_tim_ex.o"
+"autoguitartuner\stm32f0xx_hal_rcc.o"
+"autoguitartuner\stm32f0xx_hal_rcc_ex.o"
+"autoguitartuner\stm32f0xx_hal.o"
+"autoguitartuner\stm32f0xx_hal_i2c.o"
+"autoguitartuner\stm32f0xx_hal_i2c_ex.o"
+"autoguitartuner\stm32f0xx_hal_gpio.o"
+"autoguitartuner\stm32f0xx_hal_dma.o"
+"autoguitartuner\stm32f0xx_hal_cortex.o"
+"autoguitartuner\stm32f0xx_hal_pwr.o"
+"autoguitartuner\stm32f0xx_hal_pwr_ex.o"
+"autoguitartuner\stm32f0xx_hal_flash.o"
+"autoguitartuner\stm32f0xx_hal_flash_ex.o"
+"autoguitartuner\stm32f0xx_hal_exti.o"
+"autoguitartuner\system_stm32f0xx.o"
+--strict --scatter "AutoGuitarTuner\AutoGuitarTuner.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "AutoGuitarTuner.map" -o AutoGuitarTuner\AutoGuitarTuner.axf
