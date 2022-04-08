@@ -117,66 +117,55 @@ void toggle_led(TRIPP_PIN_COLOR color){
 	}
 }
 
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
 
 
+int fix_fft(short fr[],	short ir[], short m, short inverse);
 
+/*Integer square root - Obtained from Stack Overflow (14/6/15):
+ * http://stackoverflow.com/questions/1100090/looking-for-an-efficient-integer-square-root-algorithm-for-arm-thumb2
+ * User: Gutskalk
+ */
+uint16_t isqrt(uint32_t x)
+{
+	uint16_t res=0;
+	uint16_t add= 0x8000;
+	int i;
+	for(i=0;i<16;i++)
+	{
+		uint16_t temp=res | add;
+		uint32_t g2=temp*temp;
+		if (x>=g2)
+		{
+			res=temp;
+		}
+		add>>=1;
+	}
+	return res;
+}
 
-//int8_t calcSoundAverage() {
-//	int avg = 0;
-//	for(int i = 0; i < ADC_SIZE; ++i) {
-//		avg += adc_value[i];
-//	}
-//	
-//	return avg / ADC_SIZE;
-//}
-//
-//uint32_t calcFrequency() {
-//	int8_t avg = calcSoundAverage();
-//	
-//	int numSamples = 0;
-//	int16_t zeros = 0;
-//	int8_t aboveZero = (adc_value[0] - avg) > 0;
-//	int8_t firstHalfwave = 0;
-//	for(int i = 1; i < ADC_SIZE; ++i) {
-//		int8_t current = adc_value[i] - avg;
-//		
-//		if(current > 0 && !aboveZero) {
-//			zeros++;
-//			aboveZero = 1;
-//			firstHalfwave++;
-//		}
-//		else if(current < 0 && aboveZero) {
-//			zeros++;
-//			aboveZero = 0;
-//			firstHalfwave++;
-//		}		
-//		
-//		if(firstHalfwave == 1) {
-//			numSamples++;
-//		}
-//	}
-//	return 0;
-//}
-
-
-void error() {
+void MyError() {
 	enable_gpio(GPIOC);
 	enable_led(TRIPP_RED);
 	turn_on_led(TRIPP_RED);
 
 }
 
-volatile uint32_t adc_value = 0;
+
+#define ADC_FREQ (65,536) //Hz
+#define ADC_BUFFER_SIZE (1024)
+#define ADC_BUFFER_SIZE_LOG2 (10)
+int16_t adc_value[ADC_BUFFER_SIZE];
+int16_t imaginary[ADC_BUFFER_SIZE] = {0};
+volatile int16_t current;
 int main(void)
 {
  
   HAL_Init();
   SystemClock_Config();
 	
+	enable_gpio(GPIOC);
+	enable_led(TRIPP_ORANGE);
+	enable_led(TRIPP_BLUE);
 	
 	RCC->APB2ENR = RCC_APB2ENR_ADC1EN;
 	
@@ -190,13 +179,13 @@ int main(void)
 	adcHandle.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
 	adcHandle.Init.LowPowerAutoWait = DISABLE;
 	adcHandle.Init.LowPowerAutoPowerOff = DISABLE;
-	adcHandle.Init.ContinuousConvMode = ENABLE;
+	adcHandle.Init.ContinuousConvMode = DISABLE;
 	adcHandle.Init.DiscontinuousConvMode = DISABLE;
-	adcHandle.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-	adcHandle.Init.ExternalTrigConvEdge = 0;
+	adcHandle.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T2_TRGO;
+	adcHandle.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
 	adcHandle.Init.DMAContinuousRequests = DISABLE;
 	adcHandle.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
-	adcHandle.Init.SamplingTimeCommon = ADC_SAMPLETIME_1CYCLE_5;
+	adcHandle.Init.SamplingTimeCommon = ADC_SAMPLETIME_239CYCLES_5;
 	
 	adcHandle.DMA_Handle = NULL;
 	
@@ -206,10 +195,11 @@ int main(void)
 	
 	HAL_StatusTypeDef status = HAL_ADC_Init(&adcHandle);
 	
-
 	if(status != HAL_OK) {
-		error();
+		MyError();
 	}
+	
+
 	
 	ADC_ChannelConfTypeDef adcChannel;
 	adcChannel.Channel = ADC_CHANNEL_10;
@@ -217,23 +207,111 @@ int main(void)
 	status = HAL_ADC_ConfigChannel(&adcHandle, &adcChannel);
 	
 	if(status != HAL_OK) {
-		error();
+		MyError();
 	}
+	
+
+	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 and TIM3 
+	// Set clock freq to 50000 Hz
+	TIM2->ARR = 1; 
+	TIM2->PSC = 121;
+	 	// Enable clock interupt
+	TIM2->DIER |= TIM_DIER_UIE;
+	TIM2->CR2 |= TIM_CR2_MMS_1;
+
+	
+	// Start the timer
+	TIM2->CR1 |=  TIM_CR1_CEN;
+	NVIC_EnableIRQ(TIM2_IRQn);
+	
 	
 	status = HAL_ADCEx_Calibration_Start(&adcHandle);
 	if(status != HAL_OK) {
-		error();
+		MyError();
 	}
 	
 	status = HAL_ADC_Start(&adcHandle);
 	if(status != HAL_OK) {
-		error();
+		MyError();
 	}
-	enable_gpio(GPIOC);
-	enable_led(TRIPP_BLUE);
+	
+	
+	HAL_Delay(500);
+	int32_t resting_avg = 0;
+	for(int i = 0; i < ADC_BUFFER_SIZE; ++i) {
+		while((ADC1->ISR & (1 << 2)) == 0);
+		resting_avg += HAL_ADC_GetValue(&adcHandle);	
+	}
+	
+	resting_avg /= ADC_BUFFER_SIZE;
+	
+
+
+	turn_on_led(TRIPP_ORANGE);
+	enable_led(TRIPP_GREEN);
+	int index = 0;	
+	volatile int16_t freq = 0;
 	while(1) {
-		adc_value = HAL_ADC_GetValue(&adcHandle);
+		
+		while((ADC1->ISR & (1 << 2)) == 0);
+		current = (HAL_ADC_GetValue(&adcHandle)) - (3450);
+		
+		
+		adc_value[index] = current;
+		imaginary[index] = 0;
+		++index;
+		if(index == ADC_BUFFER_SIZE) {
+			
+			//for(index = 0; index < ADC_BUFFER_SIZE; ++index){
+			//	
+			//	if(index < (ADC_BUFFER_SIZE / 2)) {
+			//		adc_value[index] = ((int32_t)adc_value[index]*index) >> ADC_BUFFER_SIZE_LOG2;
+			//	}
+			//	else {
+			//		adc_value[index] = ((int32_t)adc_value[index]*((ADC_BUFFER_SIZE / 2) - index)) >> ADC_BUFFER_SIZE_LOG2;
+			//	}
+			//}
+			
+			
+			fix_fft(adc_value, imaginary, ADC_BUFFER_SIZE_LOG2, 0);
+			
+			int16_t i_max = 0;
+			uint16_t maxMag = 0;
+			for(index = 1; index < ADC_BUFFER_SIZE; ++index) {
+			
+				uint16_t mag = isqrt((int32_t)adc_value[index] * (int32_t)adc_value[index] + (int32_t)imaginary[index] * (int32_t)imaginary[index]);
+				
+				if(mag > maxMag) {
+					i_max = index;
+					maxMag = mag;
+				}
+			}
+			
+			int16_t tempFreq = (i_max * 64) / 2;
+			
+			if(tempFreq > 0 && tempFreq < 1500) {
+				freq = tempFreq;
+			}
+			
+			if(freq == 320) {
+				turn_on_led(TRIPP_GREEN);
+			}
+			else{
+				turn_off_led(TRIPP_GREEN);
+			}
+			
+			index = 0;
+			
+			while((ADC1->ISR & (1 << 2)) == 0);
+			current = (HAL_ADC_GetValue(&adcHandle)<< 4) - resting_avg;
+		}
 	}	
+}
+
+void TIM2_IRQHandler(void) {
+
+	// Clear pending
+	TIM2->SR &= ~TIM_SR_UIF;
 }
 
 

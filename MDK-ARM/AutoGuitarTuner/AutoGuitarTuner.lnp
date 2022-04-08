@@ -3,6 +3,7 @@
 "autoguitartuner\main.o"
 "autoguitartuner\stm32f0xx_it.o"
 "autoguitartuner\stm32f0xx_hal_msp.o"
+"autoguitartuner\fix_fft.o"
 "autoguitartuner\stm32f0xx_hal_tim.o"
 "autoguitartuner\stm32f0xx_hal_tim_ex.o"
 "autoguitartuner\stm32f0xx_hal_rcc.o"
