@@ -23,7 +23,7 @@
 
 void SystemClock_Config(void);
 
-
+/// @brief Simple enum to describe LED color.
 typedef enum TRIPP_PIN_COLOR {
 	TRIPP_RED = GPIO_PIN_6,
 	TRIPP_BLUE = GPIO_PIN_7,
@@ -39,7 +39,7 @@ void turn_on_led(TRIPP_PIN_COLOR color);
 void turn_off_led(TRIPP_PIN_COLOR color);
 void toggle_led(TRIPP_PIN_COLOR color);
 
-// Simple error indication function.
+/// @brief Error indication function.
 void my_simple_error_indicator(void);
 
 // FFT calculation.
@@ -52,14 +52,12 @@ int fix_fft(short fr[],	short ir[], short m, short inverse);
 uint16_t isqrt(uint32_t x);
 
 int16_t calculateCurrentPassFrequency(int16_t indexOfBucket);
-
 int16_t getIndexOfBucketWithLargestMagnitude(void);
-
 int16_t getRollingFrequency(int16_t currentFreq);
-
 void tuneLower(void);
 void tuneHigher(void);
 void setAsTuned(void);
+
 
 #define ADC_FREQ (65536) //Hz
 #define ADC_BUFFER_SIZE (1024)
@@ -80,73 +78,36 @@ int main(void)
 	enable_led(TRIPP_GREEN);
 	enable_led(TRIPP_RED);
 	
-	
 	// Enable and configure ADC to channel 10 for PC0
 	RCC->APB2ENR = RCC_APB2ENR_ADC1EN;
 	
-	ADC_HandleTypeDef adcHandle = {0};
-	adcHandle.Instance = ADC1;
+	// Set conversion on clock signal.
+	ADC1->CFGR1 |= (2 << ADC_CFGR1_EXTSEL_Pos) | (1 << ADC_CFGR1_EXTEN_Pos) | ADC_CFGR1_OVRMOD;
+	// Set sample rate.
+	ADC1->SMPR |= 0x07;
+	// Set channel.
+	ADC1->CHSELR |= ADC_CHSELR_CHSEL10;
 	
-	adcHandle.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
-	adcHandle.Init.Resolution = ADC_RESOLUTION_12B;
-	adcHandle.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-	adcHandle.Init.ScanConvMode = 0;
-	adcHandle.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
-	adcHandle.Init.LowPowerAutoWait = DISABLE;
-	adcHandle.Init.LowPowerAutoPowerOff = DISABLE;
-	adcHandle.Init.ContinuousConvMode = DISABLE;
-	adcHandle.Init.DiscontinuousConvMode = DISABLE;
-	adcHandle.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T2_TRGO;
-	adcHandle.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
-	adcHandle.Init.DMAContinuousRequests = DISABLE;
-	adcHandle.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
-	adcHandle.Init.SamplingTimeCommon = ADC_SAMPLETIME_239CYCLES_5;
-	
-	adcHandle.DMA_Handle = NULL;
-	
-	adcHandle.Lock = HAL_UNLOCKED;
-	
-	adcHandle.State = 0;
-	
-	HAL_StatusTypeDef status = HAL_ADC_Init(&adcHandle);
-	
-	if(status != HAL_OK) {
-		my_simple_error_indicator();
-	}
-	
-	ADC_ChannelConfTypeDef adcChannel;
-	adcChannel.Channel = ADC_CHANNEL_10;
-	
-	status = HAL_ADC_ConfigChannel(&adcHandle, &adcChannel);
-	
-	if(status != HAL_OK) {
-		my_simple_error_indicator();
-	}
-	
-
 	// Enable TIM2 to trigger ADC conversion at 65536 Hz
-	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 and TIM3 
+	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 
 	// Set clock freq to 65,536 Hz
 	TIM2->ARR = 1; 
 	TIM2->PSC = 121;
-	
 	TIM2->CR2 |= TIM_CR2_MMS_1;
-	
 	// Start the timer
 	TIM2->CR1 |=  TIM_CR1_CEN;
 
-
-	// Calibrate the ADC.
-	status = HAL_ADCEx_Calibration_Start(&adcHandle);
-	if(status != HAL_OK) {
-		my_simple_error_indicator();
-	}
 	
-	// Start the ADC.
-	status = HAL_ADC_Start(&adcHandle);
-	if(status != HAL_OK) {
-		my_simple_error_indicator();
-	}
+	// Calibrate and start ADC
+	ADC1->CR |= ADC_CR_ADCAL;
+	
+	while((ADC1->CR & ADC_CR_ADCAL) > 0) {}
+		
+	// Enable ADC
+	ADC1->CR |= ADC_CR_ADEN;
+	
+	while((ADC1->ISR & ADC_ISR_ADRDY) == 0) {}; // Wait for ready flag.
+	ADC1->CR |= ADC_CR_ADSTART; // Start
 	
 	
 	int index = 0;	
@@ -155,7 +116,7 @@ int main(void)
 		
 		while((ADC1->ISR & (1 << 2)) == 0);
 		
-		adc_value[index] = (HAL_ADC_GetValue(&adcHandle)) - (3450); // 3450 is the midpoint of the microphone.
+		adc_value[index] = (ADC1->DR) - (3450); // 3450 is the midpoint of the microphone.
 		imaginary[index] = 0;
 		++index;
 		
@@ -176,7 +137,7 @@ int main(void)
 			
 			freq = getRollingFrequency(calculateCurrentPassFrequency(i_max));
 			
-			switch(freq) {
+			switch(freq) {	
 				// Tune to E
 				case 50:
 				case 51:
@@ -606,7 +567,7 @@ int main(void)
 			
 			// Read a value to clear the ADC conversion that may have occurred during processing of frequency.
 			while((ADC1->ISR & (1 << 2)) == 0);
-			HAL_ADC_GetValue(&adcHandle);
+			ADC1->DR;
 		}
 	}	
 }
