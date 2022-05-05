@@ -57,6 +57,8 @@ int16_t getRollingFrequency(int16_t currentFreq);
 void tuneLower(void);
 void tuneHigher(void);
 void setAsTuned(void);
+void checkButton(void);
+
 
 
 #define ADC_FREQ (65536) //Hz
@@ -65,6 +67,7 @@ void setAsTuned(void);
 static int16_t adc_value[ADC_BUFFER_SIZE];
 static int16_t imaginary[ADC_BUFFER_SIZE];
 
+static char motorCanSpin = 0;
 int main(void)
 {
  
@@ -77,6 +80,14 @@ int main(void)
 	enable_led(TRIPP_BLUE);
 	enable_led(TRIPP_GREEN);
 	enable_led(TRIPP_RED);
+	
+	// Setup button
+	enable_gpio(GPIOA);
+	GPIOA->MODER &= ~((1 << 0) | (1 << 1)); // Sets pin mode to input.
+	GPIOA->OTYPER &= ~(1 << 0); // Sets pin output type to push-pull.
+	GPIOA->OSPEEDR &= ~(1 << 0); // Sets speed to low.
+	GPIOA->PUPDR |= (1 << 1); 	// Sets pull-down.
+	GPIOA->PUPDR &= ~(1 << 0); 	// Sets pull-down.
 	
 	// Enable and configure ADC to channel 10 for PC0
 	RCC->APB2ENR = RCC_APB2ENR_ADC1EN;
@@ -109,11 +120,12 @@ int main(void)
 	while((ADC1->ISR & ADC_ISR_ADRDY) == 0) {}; // Wait for ready flag.
 	ADC1->CR |= ADC_CR_ADSTART; // Start
 	
+
 	
 	int index = 0;	
 	volatile int16_t freq = 0;
 	while(1) {
-		
+		checkButton();
 		while((ADC1->ISR & (1 << 2)) == 0);
 		
 		adc_value[index] = (ADC1->DR) - (3450); // 3450 is the midpoint of the microphone.
@@ -137,7 +149,7 @@ int main(void)
 			
 			freq = getRollingFrequency(calculateCurrentPassFrequency(i_max));
 			
-			switch(freq) {	
+			switch(freq) {
 				// Tune to E
 				case 50:
 				case 51:
@@ -695,7 +707,7 @@ int16_t getIndexOfBucketWithLargestMagnitude(void) {
 	
 		uint16_t mag = isqrt((int32_t)adc_value[index] * (int32_t)adc_value[index] + (int32_t)imaginary[index] * (int32_t)imaginary[index]);
 		
-		if(mag > 30) {
+		if(mag > 20) {
 			maxMag = mag;
 			return index;
 		}
@@ -737,17 +749,27 @@ int16_t getRollingFrequency(int16_t currentFreq) {
 }
 
 void tuneHigher(void) {
-	turn_on_led(TRIPP_RED);
-	turn_off_led(TRIPP_BLUE);
-	turn_off_led(TRIPP_GREEN);
-	turn_off_led(TRIPP_ORANGE);
+	if(motorCanSpin) {
+		turn_on_led(TRIPP_RED);
+		turn_off_led(TRIPP_BLUE);
+		turn_off_led(TRIPP_GREEN);
+		turn_off_led(TRIPP_ORANGE);
+	}
+	else {
+		setAsTuned();
+	}
 }
 
 void tuneLower(void) {
-	turn_off_led(TRIPP_RED);
-	turn_on_led(TRIPP_BLUE);
-	turn_off_led(TRIPP_GREEN);
-	turn_off_led(TRIPP_ORANGE);
+	if(motorCanSpin) {
+		turn_off_led(TRIPP_RED);
+		turn_on_led(TRIPP_BLUE);
+		turn_off_led(TRIPP_GREEN);
+		turn_off_led(TRIPP_ORANGE);
+	}
+	else {
+		setAsTuned();
+	}
 }
 
 void setAsTuned(void) {
@@ -755,6 +777,30 @@ void setAsTuned(void) {
 	turn_off_led(TRIPP_BLUE);
 	turn_off_led(TRIPP_GREEN);
 	turn_off_led(TRIPP_ORANGE);
+}
+
+void checkButton(void) {
+	static uint32_t prevTick = 0;
+	uint32_t input_signal = (GPIOA->IDR & GPIO_PIN_0);
+	
+	uint32_t tempTick = HAL_GetTick();
+	if(input_signal && tempTick - prevTick > 250) {
+		prevTick = tempTick;
+		if(motorCanSpin) {
+			turn_on_led(TRIPP_ORANGE);
+			turn_off_led(TRIPP_GREEN);
+			motorCanSpin = 0;
+		}
+		else {
+			turn_on_led(TRIPP_GREEN);
+			turn_off_led(TRIPP_ORANGE);
+			motorCanSpin = 1;
+		}
+	}
+	
+	if(!motorCanSpin) {
+		setAsTuned();
+	}
 }
 
 /**
